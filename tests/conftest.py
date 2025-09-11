@@ -2,10 +2,9 @@ import pytest
 import sys
 import os
 
-# Make sure the parent directory is in sys.path so "api" can be imported
+# Ensure repo root is importable so we can import api.index
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from api.index import app as flask_app   # <-- updated import
+from api.index import app as flask_app
 
 @pytest.fixture(scope="session")
 def client():

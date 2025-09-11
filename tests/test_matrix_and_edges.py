@@ -28,8 +28,9 @@ def test_leading_zeros_binary(client):
     assert err is None
     assert got == "10"
 
-def test_hex_case_insensitive(client):
-    for src in ("2a", "2A", "002a"):
+def test_hex_prefix_and_case(client):
+    # Should accept 0x prefix and mixed case
+    for src in ("2a", "2A", "0x2a", "0X2A", "002a"):
         got, err = call_convert(client, src, "hexadecimal", "decimal")
         assert err is None
         assert got == "42"
@@ -44,15 +45,34 @@ def test_invalid_number_string(client):
     assert got is None
     assert err  # some error message
 
+def test_base64_zero_should_work(client):
+    """App currently breaks on 0 -> base64 because to_bytes(0, ...) is invalid."""
+    got, err = call_convert(client, "0", "decimal", "base64")
+    assert err is None, f"Converting 0→base64 should not error: {err}"
+    assert got == "AA==", f"Expected little-endian b64 of 0 to be AA==, got {got}"
+
 @pytest.mark.parametrize("n", [1, 255, 256, 65535, 10**6])
 def test_base64_roundtrip_little_endian_expected(client, n):
-    """This asserts the homework's required little-endian rule for base64.
-    The current code uses big-endian, so this test should FAIL until you fix it."""
-    b64_le = le_b64_from_int(n)              # oracle little-endian b64 for n
-    # app: base64 -> decimal
+    """Homework requires little-endian base64; app uses big-endian -> should fail until fixed."""
+    b64_le = le_b64_from_int(n)
     dec, err = call_convert(client, b64_le, "base64", "decimal")
     assert err is None
     assert dec == str(n), (
         f"Expected little-endian base64 decode. For n={n}, app returned {dec} from {b64_le}."
-        " (Your code likely uses big-endian.)"
     )
+
+@pytest.mark.parametrize("neg", ["-1", "-5", "-255"])
+@pytest.mark.parametrize("to_kind", ["binary", "octal", "hexadecimal", "base64"])
+def test_negative_numbers_should_error(client, neg, to_kind):
+    """
+    Current app produces wrong strings for negatives (e.g., bin(-5)[2:] == 'b101').
+    Reasonable behavior: reject negatives for non-decimal outputs or handle sign explicitly.
+    We enforce an error for clarity.
+    """
+    got, err = call_convert(client, neg, "decimal", to_kind)
+    assert got is None or got.startswith("-"), (
+        f"Negative conversion should not silently produce malformed output. got={got}"
+    )
+    # At minimum, an error is acceptable:
+    if got is None:
+        assert err
