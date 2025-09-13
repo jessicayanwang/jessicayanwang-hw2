@@ -5,26 +5,40 @@ import base64
 import re
 
 app = Flask(__name__)
+t2d = text2digits.Text2Digits()
 
-def text_to_number(text):
-    """Convert English text number to integer"""
-    # Remove any non-alphanumeric characters and convert to lowercase
-    text = re.sub(r'[^a-zA-Z\s-]', '', text.lower())
-    
-    # Special case for zero
-    if text in ['zero', 'nil']:
-        return 0
-    
-    # Dictionary for special number words
-    number_words = {
-        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
-        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10
-    }
-    
-    if text in number_words:
-        return number_words[text]
-    
-    raise ValueError("Unable to convert text to number")
+def text_to_number(text: str) -> int:
+    """
+    Convert an English number phrase to an integer.
+    Examples:
+      'forty two' -> 42
+      'Two hundred three' -> 203
+      'one thousand and five' -> 1005
+      'minus ten' -> -10
+    """
+    if text is None:
+        raise ValueError("Unable to convert text to number")
+
+    s = text.strip()
+    if not s:
+        raise ValueError("Unable to convert text to number")
+
+    # Normalize a few common patterns:
+    # - handle 'minus' sign
+    # - keep hyphens (Text2Digits handles 'twenty-one')
+    # - allow the filler word 'and'
+    s = re.sub(r'(?i)^\s*minus\s+', '-', s)  # "minus five" -> "-five"
+
+    # Let Text2Digits convert words to digits, e.g., "one hundred five" -> "105"
+    converted = t2d.convert(s)
+
+    # Remove spaces/commas that might remain, then ensure it's exactly one integer
+    normalized = re.sub(r'[,\s]', '', converted)
+    if not re.fullmatch(r'-?\d+', normalized):
+        # Either not a pure integer, or multiple numbers present
+        raise ValueError("Unable to convert text to number")
+
+    return int(normalized)
 
 def number_to_text(number):
     """Convert integer to English text"""
